@@ -98,7 +98,7 @@ class _OIRegistrationFormBase(forms.ModelForm):
 class OIRegistrationForm(_OIRegistrationFormBase):
     class Meta:
         model = OIRegistration
-        exclude = ["participant", "data_confirmed_at"]
+        exclude = ["participant"]
 
     def set_terms_accepted_text(self, terms_accepted_phrase):
         if terms_accepted_phrase is None:
@@ -132,7 +132,7 @@ class OIDataConfirmationForm(_OIRegistrationFormBase):
 
     class Meta:
         model = OIRegistration
-        exclude = ["participant", "terms_accepted", "data_confirmed_at"]
+        exclude = ["participant", "terms_accepted"]
 
     def __init__(self, *args, participant=None, **kwargs):
         super().__init__(*args, **kwargs)
@@ -145,29 +145,42 @@ class OIDataConfirmationForm(_OIRegistrationFormBase):
             self.fields["last_name"].initial = user.last_name
             self.fields["email"].initial = user.email
 
+        self.source_registration = self._get_source_registration(participant, user)
+
         # Prefill OI fields when there is no finals registration to edit yet.
-        if (self.instance is None or self.instance.pk is None) and user is not None:
-            from oioioi.oi.utils import get_data_confirmation_settings
-
-            source_contest = None
-            if participant is not None:
-                confirmation_settings = get_data_confirmation_settings(participant.contest)
-                if confirmation_settings is not None:
-                    source_contest = confirmation_settings.source_contest
-
-            source_qs = OIRegistration.objects.filter(participant__user=user).exclude(participant=participant)
-            if source_contest is not None:
-                source_qs = source_qs.filter(participant__contest=source_contest)
-            source = source_qs.order_by("-id").first()
-            if source is not None:
-                for field in self._OI_PREFILL_FIELDS:
-                    if field in self.fields:
-                        self.fields[field].initial = getattr(source, field)
+        if (self.instance is None or self.instance.pk is None) and self.source_registration is not None:
+            for field in self._OI_PREFILL_FIELDS:
+                if field in self.fields:
+                    self.fields[field].initial = getattr(self.source_registration, field)
 
         self.order_fields(["first_name", "last_name", "email"])
+
+    @staticmethod
+    def _get_source_registration(participant, user):
+        if participant is None or user is None:
+            return None
+
+        from oioioi.oi.utils import get_data_confirmation_settings
+
+        confirmation_settings = get_data_confirmation_settings(participant.contest)
+        source_contest = confirmation_settings.source_contest if confirmation_settings is not None else None
+
+        source_qs = OIRegistration.objects.filter(participant__user=user).exclude(participant=participant)
+        if source_contest is not None:
+            source_qs = source_qs.filter(participant__contest=source_contest)
+        return source_qs.order_by("-id").first()
 
     def save_user(self, user):
         user.first_name = self.cleaned_data["first_name"]
         user.last_name = self.cleaned_data["last_name"]
         user.email = self.cleaned_data["email"]
         user.save()
+
+    def save_source_registration(self):
+        """Propagates confirmed data back to the first round registration this form was prefilled from."""
+        if self.source_registration is None:
+            return
+        for field in self._OI_PREFILL_FIELDS:
+            if field in self.fields:
+                setattr(self.source_registration, field, self.cleaned_data[field])
+        self.source_registration.save()

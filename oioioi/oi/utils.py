@@ -1,6 +1,6 @@
 from oioioi.contests.models import Round
 from oioioi.contests.utils import is_contest_admin, is_contest_observer, rounds_times
-from oioioi.oi.models import OIDataConfirmationSettings, OIRegistration, School
+from oioioi.oi.models import OIDataConfirmation, OIDataConfirmationSettings, School
 from oioioi.participants.models import Participant
 from oioioi.participants.utils import is_participant
 
@@ -25,7 +25,7 @@ def get_participant_requiring_data_confirmation(request):
         return None
 
     confirmation_settings = get_data_confirmation_settings(request.contest)
-    if confirmation_settings is not None and not confirmation_settings.is_enabled:
+    if confirmation_settings is None or not confirmation_settings.is_enabled:
         return None
 
     if not request.user.is_authenticated:
@@ -46,8 +46,8 @@ def get_participant_requiring_data_confirmation(request):
     except Participant.DoesNotExist:
         return None
 
-    reg = OIRegistration.objects.filter(participant=participant).first()
-    if reg is not None and reg.data_confirmed_at is not None:
+    confirmation = OIDataConfirmation.objects.filter(participant=participant).first()
+    if confirmation is not None and confirmation.data_confirmed_at is not None:
         return None
 
     return participant

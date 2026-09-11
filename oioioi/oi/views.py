@@ -15,7 +15,7 @@ from oioioi.dashboard.registry import dashboard_headers_registry
 from oioioi.filetracker.utils import stream_file
 from oioioi.oi.controllers import OIRegistrationController
 from oioioi.oi.forms import AddSchoolForm, OIDataConfirmationForm, city_options, school_options
-from oioioi.oi.models import OIRegistration, School
+from oioioi.oi.models import OIDataConfirmation, OIRegistration, School
 from oioioi.oi.utils import get_participant_requiring_data_confirmation, get_schools
 from oioioi.participants.models import Participant
 from oioioi.participants.utils import is_participant
@@ -146,9 +146,13 @@ def confirm_data_view(request):
             with transaction.atomic():
                 instance = form.save(commit=False)
                 instance.participant = participant
-                instance.data_confirmed_at = timezone.now()
                 instance.save()
                 form.save_user(request.user)
+                form.save_source_registration()
+                OIDataConfirmation.objects.update_or_create(
+                    participant=participant,
+                    defaults={"data_confirmed_at": timezone.now()},
+                )
             return redirect("default_contest_view", contest_id=request.contest.id)
     else:
         form = OIDataConfirmationForm(instance=reg, participant=participant)

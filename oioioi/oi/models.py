@@ -10,7 +10,7 @@ from django.utils.translation import gettext_lazy as _
 from oioioi.base.utils.deps import check_django_app_dependencies
 from oioioi.base.utils.validators import validate_whitespaces
 from oioioi.contests.models import Contest
-from oioioi.participants.models import RegistrationModel
+from oioioi.participants.models import Participant, RegistrationModel
 
 check_django_app_dependencies(__name__, ["oioioi.participants"])
 
@@ -129,7 +129,6 @@ class OIRegistration(RegistrationModel):
     # It is presented with the default verbose name in all contexts, except for
     # the custom registration form (in contests like OI and PA)
     terms_accepted = models.BooleanField(_("terms accepted"), default=False)
-    data_confirmed_at = models.DateTimeField(null=True, blank=True, verbose_name=_("data confirmed at"))
 
     def __str__(self):
         return _("%(class_type)s of %(school)s") % {
@@ -148,7 +147,6 @@ class OIRegistration(RegistrationModel):
         self.school = None
         self.class_type = "None"
         self.terms_accepted = False
-        self.data_confirmed_at = None
         self.save()
 
 
@@ -180,3 +178,21 @@ class OIDataConfirmationSettings(models.Model):
 
     def __str__(self):
         return str(self.contest)
+
+
+class OIDataConfirmation(models.Model):
+    participant = models.OneToOneField(
+        Participant,
+        primary_key=True,
+        on_delete=models.CASCADE,
+        verbose_name=_("participant"),
+        related_name="oi_data_confirmation",
+    )
+    data_confirmed_at = models.DateTimeField(null=True, blank=True, verbose_name=_("data confirmed at"))
+
+    class Meta:
+        verbose_name = _("personal data confirmation")
+        verbose_name_plural = _("personal data confirmations")
+
+    def __str__(self):
+        return str(self.participant)

@@ -9,7 +9,7 @@ from oioioi.base import admin
 from oioioi.base.utils import make_html_link
 from oioioi.contests.admin import ContestAdmin
 from oioioi.oi.forms import OIRegistrationForm
-from oioioi.oi.models import OIDataConfirmationSettings, OIRegistration, School
+from oioioi.oi.models import OIDataConfirmation, OIDataConfirmationSettings, OIRegistration, School
 from oioioi.participants.admin import ParticipantAdmin
 
 
@@ -126,7 +126,14 @@ class OIRegistrationInline(admin.StackedInline):
     form = OIRegistrationForm
     can_delete = False
     inline_classes = ("collapse open",)
-    exclude = ("terms_accepted", "data_confirmed_at")
+    exclude = ("terms_accepted",)
+
+
+class OIDataConfirmationInline(admin.StackedInline):
+    model = OIDataConfirmation
+    fk_name = "participant"
+    can_delete = False
+    inline_classes = ("collapse open",)
 
 
 class OIRegistrationParticipantAdmin(ParticipantAdmin):
@@ -135,7 +142,7 @@ class OIRegistrationParticipantAdmin(ParticipantAdmin):
         "school_city",
         "school_province",
     ]
-    inlines = tuple(ParticipantAdmin.inlines) + (OIRegistrationInline,)
+    inlines = tuple(ParticipantAdmin.inlines) + (OIRegistrationInline, OIDataConfirmationInline)
     readonly_fields = ["user"]
     search_fields = ParticipantAdmin.search_fields + [
         "oi_oiregistration__school__name",

@@ -14,7 +14,7 @@ from oioioi.contests.handlers import update_user_results
 from oioioi.contests.models import Contest, ProblemInstance, Round
 from oioioi.evalmgr.tasks import create_environ
 from oioioi.oi.management.commands import import_schools
-from oioioi.oi.models import OIDataConfirmationSettings, OIRegistration, School
+from oioioi.oi.models import OIDataConfirmation, OIDataConfirmationSettings, OIRegistration, School
 from oioioi.participants.models import Participant, TermsAcceptedPhrase
 from oioioi.programs.tests import SubmitFileMixin
 
@@ -639,8 +639,16 @@ class TestOIDataConfirmation(TestCase):
         round.end_date = now + timedelta(days=1)
         round.save()
 
+        OIDataConfirmationSettings.objects.create(contest=self.contest, is_enabled=True)
+
         self.confirm_url = reverse("oi_confirm_data", kwargs={"contest_id": self.contest.id})
         self.contest_url = reverse("default_contest_view", kwargs={"contest_id": self.contest.id})
+
+    def test_no_redirect_when_confirmation_settings_missing(self):
+        OIDataConfirmationSettings.objects.filter(contest=self.contest).delete()
+        self.assertTrue(self.client.login(username="test_user"))
+        response = self.client.get(self.contest_url)
+        self.assertNotIn("confirm-data", response.get("Location", ""))
 
     def test_unconfirmed_participant_is_redirected_to_confirmation(self):
         self.assertTrue(self.client.login(username="test_user"))
@@ -673,8 +681,8 @@ class TestOIDataConfirmation(TestCase):
         response = self.client.get(self.contest_url)
         self.assertNotIn("confirm-data", response.get("Location", ""))
 
-        reg = OIRegistration.objects.get(participant__user__username="test_user")
-        self.assertIsNotNone(reg.data_confirmed_at)
+        confirmation = OIDataConfirmation.objects.get(participant__user__username="test_user")
+        self.assertIsNotNone(confirmation.data_confirmed_at)
         user = User.objects.get(username="test_user")
         # Posted first_name/last_name/email are ignored: these fields are
         # disabled and can only be changed via edit_profile.
@@ -717,8 +725,9 @@ class TestOIDataConfirmation(TestCase):
         self.assertRedirects(response, self.contest_url, fetch_redirect_response=False)
 
         reg = OIRegistration.objects.get(participant__user=user)
-        self.assertIsNotNone(reg.data_confirmed_at)
         self.assertEqual(reg.city, "Camelot")
+        confirmation = OIDataConfirmation.objects.get(participant__user=user)
+        self.assertIsNotNone(confirmation.data_confirmed_at)
         user.refresh_from_db()
         # Posted first_name/last_name/email are ignored: these fields are
         # disabled and can only be changed via edit_profile.
@@ -732,7 +741,7 @@ class TestOIDataConfirmation(TestCase):
         self.assertNotIn("confirm-data", response.get("Location", ""))
 
     def test_no_redirect_when_confirmation_disabled_in_settings(self):
-        OIDataConfirmationSettings.objects.create(contest=self.contest, is_enabled=False)
+        OIDataConfirmationSettings.objects.filter(contest=self.contest).update(is_enabled=False)
         self.assertTrue(self.client.login(username="test_user"))
         response = self.client.get(self.contest_url)
         self.assertNotIn("confirm-data", response.get("Location", ""))
@@ -768,7 +777,7 @@ class TestOIDataConfirmation(TestCase):
             class_type="1LO",
         )
 
-        OIDataConfirmationSettings.objects.create(contest=self.contest, is_enabled=True, source_contest=other_contest)
+        OIDataConfirmationSettings.objects.filter(contest=self.contest).update(source_contest=other_contest)
 
         Participant.objects.create(contest=self.contest, user=user, status="ACTIVE")
 
